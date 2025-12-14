@@ -9,7 +9,7 @@ async def traducir_teclas():
     while True:
         tecla = input("Comando: ").strip().lower()
 
-        if tecla == "q":
+        if tecla == "p":
             break
         elif tecla == "a": await enviar_programa(hub, "base", "positivo")
         elif tecla == "d": await enviar_programa(hub, "base", "negativo")
