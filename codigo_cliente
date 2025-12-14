@@ -1,0 +1,30 @@
+import asyncio
+from codigo_servidor import conectar_hub, enviar_programa
+
+async def traducir_teclas():
+    hub = await conectar_hub()
+    if not hub:
+        return
+
+    while True:
+        tecla = input("Comando: ").strip().lower()
+
+        if tecla == "q":
+            break
+        elif tecla == "a": await enviar_programa(hub, "base", "positivo")
+        elif tecla == "d": await enviar_programa(hub, "base", "negativo")
+        elif tecla == "w": await enviar_programa(hub, "brazo", "positivo")
+        elif tecla == "s": await enviar_programa(hub, "brazo", "negativo")
+        elif tecla == "u": await enviar_programa(hub, "codo", "positivo")
+        elif tecla == "j": await enviar_programa(hub, "codo", "negativo")
+        elif tecla == "t": await enviar_programa(hub, "garra", "positivo")
+        elif tecla == "g": await enviar_programa(hub, "garra", "negativo")
+        else:
+            print("Comando inválido.")
+
+    print("Desconectando…")
+    await hub.disconnect()
+
+
+if __name__ == "__main__":
+    asyncio.run(traducir_teclas())
