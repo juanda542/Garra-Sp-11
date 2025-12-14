@@ -44,7 +44,6 @@ async def enviar_programa(hub, motor, direccion):
             archivo_codigo_hub.write(programa_hub.encode("utf-8"))
             ruta =  archivo_codigo_hub.name
 
-        print(f"→ Ejecutando {motor} ({direccion})")
         await hub.run(ruta)
 
     except Exception as e:
