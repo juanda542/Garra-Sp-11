@@ -1,0 +1,68 @@
+import asyncio
+import tempfile
+import os
+from pybricksdev.connections.pybricks import PybricksHubBLE
+from pybricksdev.ble import find_device
+
+def generar_programa_hub(motor: str, direccion: str) -> str:
+    velocidades = {'base': 80, 'brazo': 60, 'codo': 70, 'garra': 50}
+    puertos = {'base': 'A', 'brazo': 'D', 'codo': 'E', 'garra': 'C'}
+	
+    velocidad = velocidades.get(motor, 0)
+    puerto = puertos.get(motor, "A")
+
+    if direccion == "positivo":
+        comando = f"motor.run({velocidad})"
+    elif direccion == "negativo":
+        comando = f"motor.run(-{velocidad})"
+    else:
+        comando = "motor.stop()"
+
+    programa_hub= f"""
+from pybricks.hubs import PrimeHub
+from pybricks.pupdevices import Motor
+from pybricks.parameters import Port
+from pybricks.tools import wait
+
+hub = PrimeHub()
+motor = Motor(Port.{puerto})
+
+{comando}
+wait(300)
+motor.stop()
+"""
+    return programa_hub
+
+
+
+
+async def enviar_programa(hub, motor, direccion):
+    programa_hub = generar_programa_hub(motor, direccion)
+
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".py") as archivo_codigo_hub:
+            archivo_codigo_hub.write(programa_hub.encode("utf-8"))
+            ruta =  archivo_codigo_hub.name
+
+        print(f"→ Ejecutando {motor} ({direccion})")
+        await hub.run(ruta)
+
+    except Exception as e:
+        print(f"ERROR: {e}")
+
+    finally:
+        if 'ruta' in locals() and os.path.exists(ruta):
+            os.remove(ruta)
+
+
+
+async def conectar_hub():
+    dispositivo_ble = await find_device(name="Sp-11")
+    if not dispositivo_ble:
+        print("No se pudo encontrar al Hub Sp-11")
+        return None
+
+    hub = PybricksHubBLE(dispositivo_ble)
+    await hub.connect()
+    print("Conexión al hub completa")
+    return hub
