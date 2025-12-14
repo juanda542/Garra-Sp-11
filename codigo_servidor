@@ -33,11 +33,8 @@ motor.stop()
 """
     return programa_hub
 
-
-
-
 async def enviar_programa(hub, motor, direccion):
-    programa_hub = generar_programa_hub(motor, direccion)
+    programa_hub = generar_programa_hub(motor, direccion)                                   
 
     try:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".py") as archivo_codigo_hub:
@@ -45,9 +42,6 @@ async def enviar_programa(hub, motor, direccion):
             ruta =  archivo_codigo_hub.name
 
         await hub.run(ruta)
-
-    except Exception as e:
-        print(f"ERROR: {e}")
 
     finally:
         if 'ruta' in locals() and os.path.exists(ruta):
