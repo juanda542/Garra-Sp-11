@@ -7,9 +7,13 @@ Características:
 * Permite conectarse e iniciar el programa del servidor a través del cliente
 
 Requerimientos:
-* Libreria pybricksdev
-* Libreria Tkinter
-* Control original Xbox
+* instalar dependencias: 
+  pip install pybricksdev 
+  pip install Tkinter
 
-Instalacion:
-Para instalar el programa se debe descargar la carpeta ZIP, descomprimirla y abrirla en el IDE deseado, despues se debe ejecutar el programa interfaz.py para iniciar el programa.
+* Control original Xbox
+* Python 3.10 o superior
+
+Ejecucion:
+1) Descargar y descomprimir Zip
+2) Ejecutar interfaz.py
