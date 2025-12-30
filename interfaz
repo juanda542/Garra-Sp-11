@@ -1,569 +1,249 @@
+import asyncio
+import threading
 import tkinter as tk
-from tkinter import Canvas
-import random
-import os
-import subprocess
+from tkinter import Canvas, PhotoImage
+from codigo_servidor1 import conectar_hub
+from codigo_cliente import enviar_programa
 
-BASE_WIDTH = 1920
-BASE_HEIGHT = 1080
 
-def escalar(valor):
-    return int(valor * SCALE)
+hub = None
+loop = asyncio.new_event_loop()
+conectando = False
 
-def fuente(tamaño):
-    return ("Arial Black", escalar(tamaño))
+def start_loop():
+    asyncio.set_event_loop(loop)
+    loop.run_forever()
 
-def obtener_dispositivos_bluetooth():
-    try:
-        salida = subprocess.check_output(
-            [
-                "powershell",
-                "-Command",
-                "Get-PnpDevice -Class Bluetooth | "
-                "Where-Object {$_.Status -eq 'OK'} | "
-                "Select-Object -ExpandProperty FriendlyName"
-            ],
-            shell=True,
-            text=True,
-            encoding="utf-8",
-            errors="ignore"
-        )
-        return [d for d in salida.split("\n") if d.strip()]
-    except:
-        return []
+threading.Thread(target=start_loop, daemon=True).start()
 
 
-def pantalla_inicio():
-    global root_inicio, SCALE
+BASE_W = 1920
+BASE_H = 1080
+SCALE = 1
 
-    root_inicio = tk.Tk()
-    root_inicio.title("CLAW-TY")
-    root_inicio.attributes("-fullscreen", True)
-    root_inicio.configure(bg="white")
+def escalar(v):
+    return int(v * SCALE)
 
-    screen_w = root_inicio.winfo_screenwidth()
-    screen_h = root_inicio.winfo_screenheight()
+def fuente(t):
+    return ("Arial Black", escalar(t))
 
-    # Calcular factor de escala
-    SCALE_X = screen_w / BASE_WIDTH
-    SCALE_Y = screen_h / BASE_HEIGHT
-    SCALE = min(SCALE_X, SCALE_Y)
+canvas = None
+boton_bt_rect = None
+notif_items = []
+BT_X = BT_Y = BT_W = BT_H = 0
+root = None
 
-    globals()["SCALE"] = SCALE
 
-    canvas = Canvas(root_inicio, width=screen_w, height=screen_h,
-                    bg="white", highlightthickness=0)
-    canvas.pack(fill="both", expand=True)
-    
-    for y in range(0, screen_h, escalar(40)):
-        canvas.create_line(0, y, screen_w, y, fill="#EAEAEA")
+def boton_canvas_en(c, x, y, w, h, texto, comando,
+                    color="white", text_color="black"):
 
-    canvas.create_text(
-        screen_w//2, escalar(200),
-        text="CLAW-TY",
-        font=fuente(140),
-        fill="black"
-    )
-
-    canvas.create_text(
-        screen_w//2, escalar(350),
-        text="BIENVENIDO",
-        font=fuente(60),
-        fill="black"
-    )
-    def boton_animado(x, y, w, h, texto, comando,
-                      color="white", text_color="black"):
-
-        sombra = canvas.create_rectangle(
-            x+escalar(10), y+escalar(10), x+w+escalar(10), y+h+escalar(10),
-            fill="black", outline=""
-        )
-
-        rect = canvas.create_rectangle(
-            x, y, x+w, y+h,
-            fill=color, outline="black", width=escalar(6)
-        )
-
-        txt = canvas.create_text(
-            x + w/2, y + h/2,
-            text=texto,
-            font=fuente(40),
-            fill=text_color
-        )
-
-        area = canvas.create_rectangle(
-            x, y, x+w, y+h,
-            outline="", fill=""
-        )
-
-        def animar(event=None):
-            canvas.move(rect, escalar(5), escalar(5))
-            canvas.move(txt, escalar(5), escalar(5))
-            canvas.itemconfig(rect, fill="#D0D0D0")
-            root_inicio.after(150, restaurar)
-
-        def restaurar():
-            canvas.move(rect, -escalar(5), -escalar(5))
-            canvas.move(txt, -escalar(5), -escalar(5))
-            canvas.itemconfig(rect, fill=color)
-            comando()
-
-        canvas.tag_bind(area, "<Button-1>", animar)
-
-    W = escalar(420)
-    H = escalar(120)
-
-    boton_animado(screen_w//2 - W - escalar(80), escalar(550), W, H, "TECLADO", abrir_teclado)
-    boton_animado(screen_w//2 + escalar(80), escalar(550), W, H, "MANDO", abrir_mando)
-    boton_animado(
-        screen_w//2 + escalar(80),
-        escalar(550),
-        W,
-        H,
-        "MANDO",
-        abrir_mando
-    )
-
-    boton_animado(
-        screen_w//2 - W//2,
-        escalar(720),
-        W,
-        H,
-        "BLUETOOTH",
-        abrir_bluetooth
-    )
-
-
-    boton_animado(
-        screen_w - escalar(350),
-        screen_h - escalar(180),
-        escalar(260),
-        escalar(110),
-        "SALIR",
-        lambda: root_inicio.destroy(),
-        color="#FF4A4A",
-        text_color="white"
-    )
-
-
-    root_inicio.mainloop()
-
-
-def abrir_teclado():
-    root_inicio.destroy()
-
-    root = tk.Tk()
-    root.title("Controlador de la Garra")
-    root.attributes("-fullscreen", True)
-    root.configure(bg="white")
-
-    screen_w = root.winfo_screenwidth()
-    screen_h = root.winfo_screenheight()
-
-    canvas = Canvas(root, width=screen_w, height=screen_h,
-                    bg="white", highlightthickness=0)
-    canvas.place(x=0, y=0)
-
-    for y in range(0, screen_h, escalar(40)):
-        canvas.create_line(0, y, screen_w, y, fill="#EAEAEA")
-
-
-    canvas.create_text(screen_w//2, escalar(120), text="CONTROLADOR",
-                       font=fuente(90), fill="black")
-
-    canvas.create_text(screen_w//2, escalar(220), text="DE LA GARRA",
-                       font=fuente(60), fill="black")
-
-    botones = {}
-    botones_area = {}
-
-    W = escalar(200)
-    H = escalar(95)
-    SEP = escalar(230)
-
-    BX = screen_w//2 - escalar(500)
-    BY = escalar(350)
-
-    def crear_boton(x, y, texto):
-        sombra = canvas.create_rectangle(
-            x+escalar(8), y+escalar(8), x+W+escalar(8), y+H+escalar(8),
-            fill="black", outline=""
-        )
-
-        rect = canvas.create_rectangle(
-            x, y, x+W, y+H,
-            fill="white", outline="black", width=escalar(5)
-        )
-
-        txt = canvas.create_text(
-            x + W/2, y + H/2,
-            text=texto,
-            font=fuente(30),
-            fill="black"
-        )
-
-        botones[texto] = (rect, sombra, txt)
-
-        area = canvas.create_rectangle(x, y, x+W, y+H,
-                                       fill="", outline="", tags=texto)
-        botones_area[texto] = area
-
-        canvas.tag_bind(area, "<Button-1>", lambda e: animar_boton(texto))
-
-    def animar_boton(c):
-        rect, sombra, txt = botones[c]
-        canvas.move(rect, escalar(4), escalar(4))
-        canvas.move(txt, escalar(4), escalar(4))
-        canvas.itemconfig(rect, fill="#D0D0D0")
-        root.after(120, lambda: restaurar(c))
-
-    def restaurar(c):
-        rect, sombra, txt = botones[c]
-        canvas.move(rect, -escalar(4), -escalar(4))
-        canvas.move(txt, -escalar(4), -escalar(4))
-        canvas.itemconfig(rect, fill="white")
-
-    def on_key(event):
-        letra = event.keysym.upper()   
-        if letra in botones:           
-            animar_boton(letra)
-
-    root.bind("<KeyPress>", on_key)
-
-    canvas.create_text(BX + W//2, BY - escalar(60), text="BASE", font=fuente(35))
-    crear_boton(BX, BY, "A")
-    crear_boton(BX + SEP, BY, "D")
-
-    canvas.create_text(BX + W//2, BY + escalar(140), text="BRAZO", font=fuente(35))
-    crear_boton(BX, BY + escalar(200), "W")
-    crear_boton(BX + SEP, BY + escalar(200), "S")
-
-    canvas.create_text(BX + W//2, BY + escalar(340), text="CODO", font=fuente(35))
-    crear_boton(BX, BY + escalar(400), "U")
-    crear_boton(BX + SEP, BY + escalar(400), "J")
-
-    GX = screen_w//2 + escalar(150)
-
-    canvas.create_text(GX + W//2, BY - escalar(60), text="GARRA", font=fuente(35))
-    crear_boton(GX, BY, "G")
-    crear_boton(GX + SEP, BY, "T")
-
-    canvas.create_text(GX + W//2, BY + escalar(140), text="STOP", font=fuente(35))
-    crear_boton(GX, BY + escalar(200), "P")
-
-    def crear_boton_regresar():
-        x = screen_w - escalar(330)
-        y = screen_h - escalar(180)
-        w = escalar(260)
-        h = escalar(110)
-
-        sombra = canvas.create_rectangle(x+escalar(10), y+escalar(10),
-                                         x+w+escalar(10), y+h+escalar(10),
-                                         fill="black", outline="")
-        rect = canvas.create_rectangle(x, y, x+w, y+h,
-                                       fill="#FF4A4A", outline="black", width=escalar(6))
-        txt = canvas.create_text(x + w//2, y + h//2,
-                                 text="Volver",
-                                 font=fuente(38),
-                                 fill="white")
-
-        area = canvas.create_rectangle(x, y, x+w, y+h,
-                                       outline="", fill="")
-
-        def animar(e=None):
-            canvas.move(rect, escalar(5), escalar(5))
-            canvas.move(txt, escalar(5), escalar(5))
-            canvas.itemconfig(rect, fill="#D63636")
-            root.after(150, restaurar)
-
-        def restaurar():
-            canvas.move(rect, -escalar(5), -escalar(5))
-            canvas.move(txt, -escalar(5), -escalar(5))
-            canvas.itemconfig(rect, fill="#FF4A4A")
-            root.destroy()
-            pantalla_inicio()
-
-        canvas.tag_bind(area, "<Button-1>", animar)
-
-    crear_boton_regresar()
-
-    root.mainloop()
-
-
-
-
-def abrir_mando():
-    root_inicio.destroy()
-
-    root = tk.Tk()
-    root.title("Mando Xbox")
-    root.attributes("-fullscreen", True)
-    root.configure(bg="white")
-
-    screen_w = root.winfo_screenwidth()
-    screen_h = root.winfo_screenheight()
-
-    canvas = Canvas(root, width=screen_w, height=screen_h,
-                    bg="white", highlightthickness=0)
-    canvas.place(x=0, y=0)
-
-
-    canvas.create_text(screen_w//2, escalar(120),
-                       text="MANDO XBOX",
-                       font=fuente(90),
-                       fill="black")
-
-    canvas.create_text(screen_w//2, escalar(220),
-                       text="CONTROLADOR DE LA GARRA",
-                       font=fuente(60),
-                       fill="black")
-
-    botones = {}
-
-
-
-    def animar_boton(c):
-        if c not in botones:
-            return
-        fig, txt = botones[c]
-        canvas.move(fig, escalar(4), escalar(4))
-        canvas.move(txt, escalar(4), escalar(4))
-        root.after(120, lambda: restaurar(c))
-
-    def restaurar(c):
-        fig, txt = botones[c]
-        canvas.move(fig, -escalar(4), -escalar(4))
-        canvas.move(txt, -escalar(4), -escalar(4))
-
-    def boton_circular(x, y, r, key, color, text_color="white"):
-        fig = canvas.create_oval(
-            x-r, y-r, x+r, y+r,
-            fill=color, outline="black", width=escalar(5)
-        )
-        txt = canvas.create_text(
-            x, y, text=key,
-            font=fuente(30),
-            fill=text_color
-        )
-        botones[key] = (fig, txt)
-
-    def boton_rect(x, y, w, h, key):
-        fig = canvas.create_rectangle(
-            x, y, x+w, y+h,
-            fill="#CCCCCC", outline="black", width=escalar(5)
-        )
-        txt = canvas.create_text(
-            x+w//2, y+h//2,
-            text=key,
-            font=fuente(26),
-            fill="black"
-        )
-        botones[key] = (fig, txt)
-
-
-    cx = screen_w // 2
-    cy = screen_h // 2 + escalar(140)
-
-
-
-    def stick(x, y):
-        canvas.create_oval(
-            x-escalar(70), y-escalar(70),
-            x+escalar(70), y+escalar(70),
-            fill="#C0C0C0", outline="black", width=escalar(5)
-        )
-        canvas.create_oval(
-            x-escalar(40), y-escalar(40),
-            x+escalar(40), y+escalar(40),
-            fill="#6E6E6E", outline="black", width=escalar(4)
-        )
-        canvas.create_oval(
-            x-escalar(10), y-escalar(10),
-            x+escalar(10), y+escalar(10),
-            fill="#4A4A4A", outline=""
-        )
-
-    stick(cx-escalar(340), cy-escalar(40))   
-    stick(cx+escalar(180), cy+escalar(80))   
-
-
-
-    sep = escalar(120)
-
-    boton_circular(cx+escalar(520), cy-sep, escalar(42), "Y", "#F1C40F")
-    boton_circular(cx+escalar(520)-sep, cy, escalar(42), "X", "#3498DB")
-    boton_circular(cx+escalar(520)+sep, cy, escalar(42), "B", "#E74C3C")
-    boton_circular(cx+escalar(520), cy+sep, escalar(42), "A", "#2ECC71")
-
-
-
-    boton_circular(cx-escalar(620), cy, escalar(34), "◀", "#DDDDDD", "black")
-    boton_circular(cx-escalar(500), cy, escalar(34), "▶", "#DDDDDD", "black")
-    boton_circular(cx-escalar(560), cy-escalar(90), escalar(34), "▲", "#DDDDDD", "black")
-    boton_circular(cx-escalar(560), cy+escalar(90), escalar(34), "▼", "#DDDDDD", "black")
-
-
-
-    boton_rect(cx-escalar(90), cy-escalar(150), escalar(100), escalar(48), "BACK")
-    boton_rect(cx+escalar(90), cy-escalar(150), escalar(100), escalar(48), "START")
-
-
-
-    boton_rect(cx-escalar(520), cy-escalar(340), escalar(200), escalar(48), "LB")
-    boton_rect(cx+escalar(320), cy-escalar(340), escalar(200), escalar(48), "RB")
-
-    boton_rect(cx-escalar(520), cy-escalar(400), escalar(200), escalar(48), "LT")
-    boton_rect(cx+escalar(320), cy-escalar(400), escalar(200), escalar(48), "RT")
-
-
-
-    x = screen_w - escalar(330)
-    y = screen_h - escalar(180)
-    w = escalar(260)
-    h = escalar(110)
-
-    sombra = canvas.create_rectangle(
-        x+escalar(10), y+escalar(10),
-        x+w+escalar(10), y+h+escalar(10),
+    c.create_rectangle(
+        x + escalar(10), y + escalar(10),
+        x + w + escalar(10), y + h + escalar(10),
         fill="black", outline=""
     )
 
-    rect = canvas.create_rectangle(
-        x, y, x+w, y+h,
-        fill="#FF4A4A", outline="black", width=escalar(6)
+    rect = c.create_rectangle(
+        x, y, x + w, y + h,
+        fill=color, outline="black", width=escalar(6)
     )
 
-    txt = canvas.create_text(
-        x+w//2, y+h//2,
-        text="Volver",
-        font=fuente(38),
-        fill="white"
+    txt = c.create_text(
+        x + w // 2, y + h // 2,
+        text=texto, font=fuente(34), fill=text_color
     )
 
-    area = canvas.create_rectangle(x, y, x+w, y+h, outline="", fill="")
+    area = c.create_rectangle(x, y, x + w, y + h, fill="", outline="")
 
     def animar(e=None):
-        canvas.move(rect, escalar(5), escalar(5))
-        canvas.move(txt, escalar(5), escalar(5))
-        canvas.itemconfig(rect, fill="#D63636")
-        root.after(150, restaurar)
+        c.move(rect, escalar(5), escalar(5))
+        c.move(txt, escalar(5), escalar(5))
+        c.after(120, restaurar)
 
     def restaurar():
-        canvas.move(rect, -escalar(5), -escalar(5))
-        canvas.move(txt, -escalar(5), -escalar(5))
-        canvas.itemconfig(rect, fill="#FF4A4A")
-        root.destroy()
-        pantalla_inicio()
+        c.move(rect, -escalar(5), -escalar(5))
+        c.move(txt, -escalar(5), -escalar(5))
+        comando()
 
-    canvas.tag_bind(area, "<Button-1>", animar)
+    c.tag_bind(area, "<Button-1>", animar)
 
-    root.mainloop()
+    return rect
 
-def abrir_bluetooth():
-    root_inicio.destroy()
+
+def mostrar_notificacion():
+    ocultar_notificacion()
+
+    w, h = escalar(520), escalar(130)
+    x = BT_X + BT_W + escalar(30)
+    y = BT_Y + BT_H // 2 - h // 2
+
+    f = canvas.create_rectangle(
+        x, y, x + w, y + h,
+        fill="#FFF3CD", outline="black", width=escalar(4)
+    )
+
+    t = canvas.create_text(
+        x + w // 2, y + h // 2,
+        text="⚠ Presiona Bluetooth\npara conectar al HUB\n(Clic para cerrar)",
+        font=fuente(26), justify="center"
+    )
+
+    canvas.tag_bind(f, "<Button-1>", lambda e: ocultar_notificacion())
+    canvas.tag_bind(t, "<Button-1>", lambda e: ocultar_notificacion())
+
+    notif_items.extend([f, t])
+
+def ocultar_notificacion():
+    for i in notif_items:
+        canvas.delete(i)
+    notif_items.clear()
+
+
+def boton_conectar():
+    global conectando, hub
+
+    if conectando:
+        return
+
+    if hub is not None:
+        hub = None
+        canvas.itemconfig(boton_bt_rect, fill="#E0E0E0")
+        mostrar_notificacion()
+        return
+
+    conectando = True
+    canvas.itemconfig(boton_bt_rect, fill="#FFC107")
+
+    async def tarea():
+        global hub, conectando
+        try:
+            hub = await conectar_hub()
+            canvas.itemconfig(boton_bt_rect, fill="#4CAF50")
+            ocultar_notificacion()
+        except:
+            canvas.itemconfig(boton_bt_rect, fill="#F44336")
+        conectando = False
+
+    asyncio.run_coroutine_threadsafe(tarea(), loop)
+
+
+def boton_mando_a():
+    global hub
+
+    if hub is None:
+        #
+        async def conectar_y_enviar():
+            global hub
+            hub = await conectar_hub()
+            if hub is not None:
+                await enviar_programa(hub)
+        asyncio.run_coroutine_threadsafe(conectar_y_enviar(), loop)
+    else:
+        
+        asyncio.run_coroutine_threadsafe(enviar_programa(hub), loop)
+    abrir_control()
+
+
+def abrir_control():
+    global hub, canvas
+    root.destroy()
+
+    r = tk.Tk()
+    r.attributes("-fullscreen", True)
+    r.configure(bg="white")
+
+    sw, sh = r.winfo_screenwidth(), r.winfo_screenheight()
+    SCALE = min(sw / BASE_W, sh / BASE_H)
+
+    c = Canvas(r, width=sw, height=sh, bg="white", highlightthickness=0)
+    c.pack(fill="both", expand=True)
+
+    c.create_text(sw // 2, escalar(130), text="CONTROLES", font=fuente(80))
+    c.create_text(sw // 2, escalar(210), text="MANDO", font=fuente(46))
+
+    img_base = PhotoImage(file="cerrar.png")
+    img = img_base.subsample(2, 2)
+    c.image = img
+    c.create_image(sw // 2, sh // 2 + escalar(40), image=img)
+
+    
+    boton_canvas_en(
+        c,
+        escalar(60),
+        sh - escalar(170),
+        escalar(300),
+        escalar(120),
+        "VOLVER",
+        lambda: (r.destroy(), pantalla_control()),
+        "#FF4A4A",
+        "white"
+    )
+
+    r.mainloop()
+
+
+def pantalla_control():
+    global root, SCALE, canvas, boton_bt_rect
+    global BT_X, BT_Y, BT_W, BT_H
 
     root = tk.Tk()
-    root.title("Bluetooth")
     root.attributes("-fullscreen", True)
     root.configure(bg="white")
 
-    screen_w = root.winfo_screenwidth()
-    screen_h = root.winfo_screenheight()
+    sw, sh = root.winfo_screenwidth(), root.winfo_screenheight()
+    SCALE = min(sw / BASE_W, sh / BASE_H)
 
-    canvas = Canvas(root, width=screen_w, height=screen_h,
-                    bg="white", highlightthickness=0)
+    canvas = Canvas(root, width=sw, height=sh, bg="white", highlightthickness=0)
     canvas.pack(fill="both", expand=True)
 
-    for y in range(0, screen_h, escalar(40)):
-        canvas.create_line(0, y, screen_w, y, fill="#EAEAEA")
+    canvas.create_text(sw // 2, escalar(280), text="CLAW-TYLDA", font=fuente(82))
 
-    canvas.create_text(
-        screen_w//2, escalar(150),
-        text="BLUETOOTH",
-        font=fuente(90)
+    mando_y = sh // 2 + escalar(80)
+
+    
+    boton_canvas_en(
+        canvas,
+        sw // 2 - escalar(320),
+        mando_y,
+        escalar(640),
+        escalar(170),
+        "MANDO",
+        boton_mando_a  
     )
 
-    canvas.create_text(
-        screen_w//2, escalar(260),
-        text="DISPOSITIVOS CONECTADOS",
-        font=fuente(50)
+    BT_W, BT_H = escalar(320), escalar(120)
+    BT_X = sw // 2 - BT_W // 2
+    BT_Y = mando_y + escalar(220)
+
+    boton_bt_rect = boton_canvas_en(
+        canvas,
+        BT_X, BT_Y,
+        BT_W, BT_H,
+        "Bluetooth",
+        boton_conectar,
+        "#E0E0E0"
     )
 
-
-    dispositivos = obtener_dispositivos_bluetooth()
-    y = escalar(330)
-
-    if dispositivos:
-        for d in dispositivos:
-            canvas.create_text(
-                screen_w//2, y,
-                text="• " + d,
-                font=fuente(32)
-            )
-            y += escalar(45)
+    
+    if hub is not None:
+        canvas.itemconfig(boton_bt_rect, fill="#4CAF50")
     else:
-        canvas.create_text(
-            screen_w//2, y,
-            text="No hay dispositivos conectados",
-            font=fuente(32),
-            fill="gray"
-        )
+        canvas.itemconfig(boton_bt_rect, fill="#E0E0E0")
 
-    def abrir_config_bluetooth():
-        root.iconify()  # 🔥 oculta tu interfaz
-        os.system("start ms-settings:bluetooth?action=pairing")
-
-    W = escalar(820)
-    H = escalar(140)
-
-    rect = canvas.create_rectangle(
-        screen_w//2 - W//2, escalar(820),
-        screen_w//2 + W//2, escalar(820) + H,
-        fill="white", outline="black", width=escalar(6)
+    boton_canvas_en(
+        canvas,
+        sw - escalar(330),
+        sh - escalar(180),
+        escalar(280),
+        escalar(120),
+        "Salir",
+        lambda: root.destroy(),
+        "#FF4A4A",
+        "white"
     )
 
-    txt = canvas.create_text(
-        screen_w//2, escalar(820) + H//2,
-        text="AGREGAR DISPOSITIVO",
-        font=fuente(36)
-    )
-
-    area = canvas.create_rectangle(
-        screen_w//2 - W//2, escalar(820),
-        screen_w//2 + W//2, escalar(820) + H,
-        fill="", outline=""
-    )
-
-    canvas.tag_bind(area, "<Button-1>", lambda e: abrir_config_bluetooth())
-
-    # ===== BOTÓN VOLVER =====
-    x = screen_w - escalar(330)
-    y = screen_h - escalar(180)
-    w = escalar(260)
-    h = escalar(110)
-
-    rect2 = canvas.create_rectangle(
-        x, y, x+w, y+h,
-        fill="#FF4A4A", outline="black", width=escalar(6)
-    )
-
-    txt2 = canvas.create_text(
-        x+w//2, y+h//2,
-        text="Volver",
-        font=fuente(38),
-        fill="white"
-    )
-
-    area2 = canvas.create_rectangle(x, y, x+w, y+h, fill="", outline="")
-
-    def volver():
-        root.destroy()
-        pantalla_inicio()
-
-    canvas.tag_bind(area2, "<Button-1>", lambda e: volver())
-
+    mostrar_notificacion()
     root.mainloop()
 
 
-
-pantalla_inicio()
+pantalla_control()
