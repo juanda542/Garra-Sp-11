@@ -2,7 +2,7 @@ import asyncio
 import threading
 import tkinter as tk
 from tkinter import Canvas, PhotoImage
-from codigo_servidor1 import conectar_hub
+from codigo_servidor import conectar_hub
 from codigo_cliente import enviar_programa
 
 
