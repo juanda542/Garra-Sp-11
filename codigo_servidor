@@ -4,50 +4,69 @@ import os
 from pybricksdev.connections.pybricks import PybricksHubBLE
 from pybricksdev.ble import find_device
 
-def generar_programa_hub(motor: str, direccion: str) -> str:
-    velocidades = {'base': 80, 'brazo': 60, 'codo': 70, 'garra': 50}
-    puertos = {'base': 'A', 'brazo': 'D', 'codo': 'E', 'garra': 'C'}
-	
-    velocidad = velocidades.get(motor, 0)
-    puerto = puertos.get(motor, "A")
 
-    if direccion == "positivo":
-        comando = f"motor.run({velocidad})"
-    elif direccion == "negativo":
-        comando = f"motor.run(-{velocidad})"
-    else:
-        comando = "motor.stop()"
-
-    programa_hub= f"""
+def generar_programa_hub() -> str:
+    programa_hub = """
 from pybricks.hubs import PrimeHub
 from pybricks.pupdevices import Motor
 from pybricks.parameters import Port
+from pybricks.iodevices import XboxController
 from pybricks.tools import wait
+from pybricks.parameters import Button
 
 hub = PrimeHub()
-motor = Motor(Port.{puerto})
 
-{comando}
-wait(300)
-motor.stop()
+base = Motor(Port.A)
+codo = Motor(Port.E)
+brazo = Motor(Port.D)
+garra = Motor(Port.C)
+
+V_BASE = 200
+V_BRAZO = 200
+V_CODO = 150
+V_GARRA = 120
+
+controller = XboxController()
+DEADZONE = 5
+
+def deadzone(v):
+    return v if abs(v) > DEADZONE else 0
+
+while True:
+    lx, ly = controller.joystick_left()
+    rx, ry = controller.joystick_right()
+    rt, lt = controller.triggers()
+
+    base.run(-deadzone(lx) * V_BASE // 100)
+    brazo.run(-deadzone(ly) * V_BRAZO // 100)
+    codo.run(deadzone(ry) * V_CODO // 100)
+
+    if rt:
+        garra.run(V_GARRA)
+    elif lt:
+        garra.run(-V_GARRA)
+    else:
+        garra.stop()
+    
+    if Button.GUIDE in controller.buttons.pressed():
+        hub.system.shutdown()
+
+    wait(10)
+
 """
     return programa_hub
 
-async def enviar_programa(hub, motor, direccion):
-    programa_hub = generar_programa_hub(motor, direccion)                                   
-
-    try:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".py") as archivo_codigo_hub:
-            archivo_codigo_hub.write(programa_hub.encode("utf-8"))
-            ruta =  archivo_codigo_hub.name
-
-        await hub.run(ruta)
-
-    finally:
-        if 'ruta' in locals() and os.path.exists(ruta):
-            os.remove(ruta)
 
 
+async def enviar_programa(hub):
+    programa_hub = generar_programa_hub()
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".py") as f:
+        f.write(programa_hub.encode("utf-8"))
+        ruta = f.name
+
+    await hub.run(ruta)
+    os.remove(ruta)
 
 async def conectar_hub():
     dispositivo_ble = await find_device(name="Sp-11")
@@ -59,3 +78,4 @@ async def conectar_hub():
     await hub.connect()
     print("Conexión al hub completa")
     return hub
+
