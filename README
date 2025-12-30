@@ -1,8 +1,8 @@
 CLAW-TYLDA
 Este programa esta pensado para controlar un brazo/garra robot con el Hub de spike prime, junto con el firmware de pybricks
 
-Caracterizticas:
+Características:
 *Cuenta con interfaz de usuario
 *Soporta control por mando de Xbox
-*Permite conectarse y iniciar el programa del servidor a travez del cliente
+*Permite conectarse e iniciar el programa del servidor a través del cliente
 
